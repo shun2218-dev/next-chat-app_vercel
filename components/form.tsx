@@ -1,124 +1,152 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import LoadingDots from "@/components/loading-dots";
-import toast from "react-hot-toast";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, FormEvent } from 'react';
+import { signIn } from 'next-auth/react';
+import LoadingDots from '@/components/loading-dots';
+import toast from 'react-hot-toast';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  TextField,
+  Button,
+  Typography,
+  TypographyProps,
+  ButtonProps,
+} from '@mui/material';
+import { ThemeProvider } from '@emotion/react';
+import { theme } from '@/lib/theme';
+import styled from '@emotion/styled';
 
-export default function Form({ type }: { type: "login" | "register" }) {
+const SButton = styled(Button)<ButtonProps>(({ theme }) => ({
+  textTransform: 'capitalize',
+  border: '1px solid transparent',
+  '&:hover': {
+    backgroundColor: 'transparent',
+    color: '#000000',
+    border: '1px solid #000000',
+  },
+  '&:disabled': {
+    cursor: 'not-allowed',
+    pointerEvents: 'auto',
+  },
+}));
+
+const STypography = styled(Typography)<TypographyProps>(({ theme }) => ({
+  '& a': {
+    fontWeight: 600,
+    color: 'rgb(31 41 55)',
+    margin: '0 0.3rem',
+  },
+}));
+
+export default function Form({ type }: { type: 'login' | 'register' }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const onSubmit = useCallback(
+    async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      try {
+        setLoading(true);
+        switch (type) {
+          case 'login':
+            const result = await signIn('credentials', {
+              redirect: false,
+              email: e.currentTarget.email.value,
+              password: e.currentTarget.password.value,
+            });
+            if (result?.error) {
+              toast.error(result.error);
+              throw new Error(result.error);
+            } else {
+              router.refresh();
+              router.push('/protected');
+            }
+          case 'register':
+            const response = await fetch('/api/auth/register', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: e.currentTarget.email.value,
+                password: e.currentTarget.password.value,
+              }),
+            });
+            if (response.status === 200) {
+              toast.success('Account created! Redirecting to login...');
+              setTimeout(() => {
+                router.push('/login');
+              }, 2000);
+            } else {
+              const { error } = await response.json();
+              toast.error(error);
+              throw new Error(error);
+            }
+        }
+      } catch (err) {
+        if (err instanceof Error) console.error(err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router, type]
+  );
 
   return (
     <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        setLoading(true);
-        if (type === "login") {
-          signIn("credentials", {
-            redirect: false,
-            email: e.currentTarget.email.value,
-            password: e.currentTarget.password.value,
-            // @ts-ignore
-          }).then(({ error }) => {
-            if (error) {
-              setLoading(false);
-              toast.error(error);
-            } else {
-              router.refresh();
-              router.push("/protected");
-            }
-          });
-        } else {
-          fetch("/api/auth/register", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              email: e.currentTarget.email.value,
-              password: e.currentTarget.password.value,
-            }),
-          }).then(async (res) => {
-            setLoading(false);
-            if (res.status === 200) {
-              toast.success("Account created! Redirecting to login...");
-              setTimeout(() => {
-                router.push("/login");
-              }, 2000);
-            } else {
-              const { error } = await res.json();
-              toast.error(error);
-            }
-          });
-        }
-      }}
+      onSubmit={onSubmit}
       className="flex flex-col space-y-4 bg-gray-50 px-4 py-8 sm:px-16"
     >
       <div>
-        <label
-          htmlFor="email"
-          className="block text-xs text-gray-600 uppercase"
-        >
-          Email Address
-        </label>
-        <input
+        <TextField
+          label="Email Address"
           id="email"
           name="email"
           type="email"
-          placeholder="panic@thedis.co"
+          placeholder="next@example.com"
           autoComplete="email"
           required
-          className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-black focus:outline-none focus:ring-black sm:text-sm"
+          aria-required
+          fullWidth
         />
       </div>
       <div>
-        <label
-          htmlFor="password"
-          className="block text-xs text-gray-600 uppercase"
-        >
-          Password
-        </label>
-        <input
-          id="password"
+        <TextField
+          label="Password"
           name="password"
+          id="password"
           type="password"
           required
-          className="mt-1 block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 placeholder-gray-400 shadow-sm focus:border-black focus:outline-none focus:ring-black sm:text-sm"
+          aria-required
+          fullWidth
         />
       </div>
-      <button
-        disabled={loading}
-        className={`${
-          loading
-            ? "cursor-not-allowed border-gray-200 bg-gray-100"
-            : "border-black bg-black text-white hover:bg-white hover:text-black"
-        } flex h-10 w-full items-center justify-center rounded-md border text-sm transition-all focus:outline-none`}
-      >
-        {loading ? (
-          <LoadingDots color="#808080" />
-        ) : (
-          <p>{type === "login" ? "Sign In" : "Sign Up"}</p>
-        )}
-      </button>
-      {type === "login" ? (
-        <p className="text-center text-sm text-gray-600">
-          Don&apos;t have an account?{" "}
-          <Link href="/register" className="font-semibold text-gray-800">
-            Sign up
-          </Link>{" "}
+      <ThemeProvider theme={theme}>
+        <SButton
+          type="submit"
+          variant="contained"
+          color="primary"
+          disabled={loading}
+        >
+          {loading ? (
+            <LoadingDots color="#808080" />
+          ) : (
+            <Typography>{type === 'login' ? 'Sign In' : 'Sign Up'}</Typography>
+          )}
+        </SButton>
+      </ThemeProvider>
+      {type === 'login' ? (
+        <STypography align="center" variant="subtitle1" paragraph>
+          Don&apos;t have an account?
+          <Link href="/register">Sign up</Link>
           for free.
-        </p>
+        </STypography>
       ) : (
-        <p className="text-center text-sm text-gray-600">
-          Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-gray-800">
-            Sign in
-          </Link>{" "}
+        <STypography align="center" variant="subtitle1" paragraph>
+          Already have an account?
+          <Link href="/login">Sign in</Link>
           instead.
-        </p>
+        </STypography>
       )}
     </form>
   );
